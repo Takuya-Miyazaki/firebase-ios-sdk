@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.1
 // The swift-tools-version declares the minimum version of Swift required to
 // build this package.
 
@@ -18,7 +18,7 @@
 
 import PackageDescription
 
-let firebaseVersion = "12.10.0"
+let firebaseVersion = "12.17.0"
 
 let shouldUseSourceFirestore = Context.environment["FIREBASE_SOURCE_FIRESTORE"] != nil
 
@@ -172,8 +172,7 @@ let package = Package(
       url: "https://github.com/google/interop-ios-for-google-sdks.git",
       "101.0.0" ..< "102.0.0"
     ),
-    .package(url: "https://github.com/google/app-check.git",
-             "11.0.1" ..< "12.0.0"),
+    appCheckDependency(),
   ],
   targets: [
     .target(
@@ -187,12 +186,20 @@ let package = Package(
     .target(
       name: "FirebaseAILogic",
       dependencies: [
+        // Direct dependency on AppCheck for automatic token acquisition and
+        // management.
+        "FirebaseAppCheck",
+        // Despite the direct dependency on App Check, the AI Logic SDK still
+        // uses AppCheck through the interop.
         "FirebaseAppCheckInterop",
         "FirebaseAuthInterop",
         "FirebaseCore",
         "FirebaseCoreExtension",
       ],
-      path: "FirebaseAI/Sources"
+      path: "FirebaseAI/Sources",
+      swiftSettings: [
+        isFoundationModelsSupportedPlatformSwiftSetting(),
+      ]
     ),
     .testTarget(
       name: "FirebaseAILogicUnit",
@@ -207,6 +214,9 @@ let package = Package(
       ],
       cSettings: [
         .headerSearchPath("../../../"),
+      ],
+      swiftSettings: [
+        isFoundationModelsSupportedPlatformSwiftSetting(),
       ]
     ),
     .target(
@@ -346,8 +356,8 @@ let package = Package(
     ),
     .binaryTarget(
       name: "FirebaseAnalytics",
-      url: "https://dl.google.com/firebase/ios/swiftpm/12.8.0/FirebaseAnalytics.zip",
-      checksum: "7b10e5c90cff02d70af6ad6ab5f997d00dcbe1ed8ad6100d8207844d65187850"
+      url: "https://dl.google.com/firebase/ios/swiftpm/12.17.0/FirebaseAnalytics.zip",
+      checksum: "e9d8457c05640706c5e80f81e46235bf929d55321a127802f8dd7a3c7a98aebb"
     ),
     .testTarget(
       name: "AnalyticsSwiftUnit",
@@ -557,10 +567,7 @@ let package = Package(
     .target(
       name: "FirebaseCrashlyticsSwift",
       dependencies: ["FirebaseRemoteConfigInterop"],
-      path: "Crashlytics",
-      sources: [
-        "Crashlytics/Rollouts/",
-      ]
+      path: "Crashlytics/Crashlytics/Rollouts"
     ),
     .testTarget(
       name: "FirebaseCrashlyticsSwiftUnit",
@@ -937,6 +944,7 @@ let package = Package(
     .target(
       name: "SharedTestUtilities",
       dependencies: ["FirebaseCore",
+                     "FirebaseCoreExtension",
                      "FirebaseAppCheckInterop",
                      "FirebaseAuthInterop",
                      "FirebaseMessagingInterop",
@@ -1260,6 +1268,7 @@ let package = Package(
               "FirebaseAppCheckInterop",
               "FirebaseCore",
               .product(name: "AppCheckCore", package: "app-check"),
+              .product(name: "AppCheckRecaptchaProvider", package: "app-check"),
               .product(name: "GULEnvironment", package: "GoogleUtilities"),
               .product(name: "GULUserDefaults", package: "GoogleUtilities"),
             ],
@@ -1305,8 +1314,16 @@ let package = Package(
     ),
     .testTarget(
       name: "FirebaseAppCheckUnitSwift",
-      dependencies: ["FirebaseAppCheck"],
+      dependencies: [
+        "FirebaseAppCheck",
+        "FirebaseCoreExtension",
+        "SharedTestUtilities",
+        .product(name: "AppCheckCore", package: "app-check"),
+      ],
       path: "FirebaseAppCheck/Tests/Unit/Swift",
+      cSettings: [
+        .headerSearchPath("../../../"),
+      ],
       swiftSettings: [
         .swiftLanguageMode(SwiftLanguageMode.v5),
       ]
@@ -1330,6 +1347,18 @@ let package = Package(
       path: "FirebaseTestingSupport/Firestore/Tests",
       cSettings: [
         .headerSearchPath("../../.."),
+      ]
+    ),
+    .testTarget(
+      name: "FirebaseFirestoreTests",
+      dependencies: [
+        "Firebase",
+        "FirebaseCore",
+        "FirebaseFirestoreTarget",
+      ],
+      path: "Firestore/Swift/Tests/Unit",
+      cSettings: [
+        .headerSearchPath("../../../"),
       ]
     ),
   ] + firestoreTargets(),
@@ -1377,18 +1406,18 @@ func firebaseCrashlyticsTarget() -> Target {
       "CHANGELOG.md",
       "LICENSE",
       "README.md",
-      "ProtoSupport/",
-      "UnitTests/",
+      "ProtoSupport",
+      "UnitTests",
       "generate_project.sh",
       "upload-symbols",
       "CrashlyticsInputFiles.xcfilelist",
       "third_party/libunwind/LICENSE",
-      "Crashlytics/Rollouts/",
+      "Crashlytics/Rollouts",
     ],
     sources: [
-      "Crashlytics/",
-      "Protogen/",
-      "Shared/",
+      "Crashlytics",
+      "Protogen",
+      "Shared",
       "third_party/libunwind/dwarf.h",
     ],
     resources: [.process("Resources/PrivacyInfo.xcprivacy")],
@@ -1410,7 +1439,7 @@ func googleAppMeasurementDependency() -> Package.Dependency {
     return .package(url: appMeasurementURL, branch: "main")
   }
 
-  return .package(url: appMeasurementURL, exact: "12.8.0")
+  return .package(url: appMeasurementURL, "12.17.0" ..< "12.18.0")
 }
 
 func abseilDependency() -> Package.Dependency {
@@ -1541,6 +1570,7 @@ func firestoreTargets() -> [Target] {
             .when(platforms: [.iOS, .macOS, .tvOS, .visionOS])
           ),
           .linkedFramework("UIKit", .when(platforms: [.iOS, .tvOS, .visionOS])),
+          .linkedFramework("Network"),
           .linkedLibrary("c++"),
         ]
       ),
@@ -1591,8 +1621,8 @@ func firestoreTargets() -> [Target] {
     } else {
       return .binaryTarget(
         name: "FirebaseFirestoreInternal",
-        url: "https://dl.google.com/firebase/ios/bin/firestore/12.9.0/rc0/FirebaseFirestoreInternal.zip",
-        checksum: "20d59ef59734ab7125273d6433aa32f1c48ac87a91bab6d169aeff089ef4faa6"
+        url: "https://dl.google.com/firebase/ios/bin/firestore/12.17.0/rc0/FirebaseFirestoreInternal.zip",
+        checksum: "26a8f4b5b2b454b2caf002296da08d71f241628ec27e1610b5b5a8fd5c61feb5"
       )
     }
   }()
@@ -1630,6 +1660,7 @@ func firestoreTargets() -> [Target] {
       linkerSettings: [
         .linkedFramework("SystemConfiguration", .when(platforms: [.iOS, .macOS, .tvOS])),
         .linkedFramework("UIKit", .when(platforms: [.iOS, .tvOS])),
+        .linkedFramework("Network"),
         .linkedLibrary("c++"),
       ]
     ),
@@ -1644,4 +1675,25 @@ func firestoreTargets() -> [Target] {
     ),
     firestoreInternalTarget,
   ]
+}
+
+func isFoundationModelsSupportedPlatformSwiftSetting() -> SwiftSetting {
+  return SwiftSetting.define(
+    "IS_FOUNDATION_MODELS_SUPPORTED_PLATFORM",
+    .when(platforms: [.iOS, .macCatalyst, .macOS, .visionOS])
+  )
+}
+
+func appCheckDependency() -> Package.Dependency {
+  let appCheckURL = "https://github.com/google/app-check.git"
+
+  if let localPath = Context.environment["FIREBASE_APP_CHECK_LOCAL_PATH"] {
+    return .package(path: localPath)
+  }
+
+  if let branch = Context.environment["FIREBASE_APP_CHECK_BRANCH"] {
+    return .package(url: appCheckURL, branch: branch)
+  }
+
+  return .package(url: appCheckURL, "11.3.0" ..< "12.0.0")
 }

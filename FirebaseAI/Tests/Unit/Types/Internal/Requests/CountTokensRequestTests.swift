@@ -17,7 +17,6 @@ import XCTest
 
 @testable import FirebaseAILogic
 
-@available(iOS 15.0, macOS 12.0, macCatalyst 15.0, tvOS 15.0, watchOS 8.0, *)
 final class CountTokensRequestTests: XCTestCase {
   let encoder = JSONEncoder()
 
@@ -38,7 +37,7 @@ final class CountTokensRequestTests: XCTestCase {
 
   // MARK: CountTokensRequest Encoding
 
-  func testEncodeCountTokensRequest_vertexAI_minimal() throws {
+  func testEncodeCountTokensRequest_agentPlatform_minimal() throws {
     let content = ModelContent(role: nil, parts: [textPart])
     let generateContentRequest = GenerateContentRequest(
       model: modelResourceName,

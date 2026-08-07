@@ -1,3 +1,14 @@
+# 12.17.0
+- [fixed] Resolved a concurrency resource leak in Functions stream cancellation. (#16392)
+- [changed] Enforced stricter transport layer security when using the emulator:
+  Auth, FCM, and AppCheck tokens are no longer attached to outbound requests if
+  the connection is made over HTTP to a non-loopback host. (#16395)
+
+# 12.13.0
+- [fixed] Fixed a release-build crash in `HTTPSCallable.call()` when using
+  Xcode 26.4 (Swift 6.3) that was caused by a Swift regression in `async let`
+  teardown. (#15974)
+
 # 12.0.0
 - [changed] **Breaking Change**: Mark `HTTPSCallable` and `HTTPSCallableOptions`
   as `final` classes for Swift clients. This was to achieve Swift 6 checked
